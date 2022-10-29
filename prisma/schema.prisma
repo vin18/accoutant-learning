@@ -1,0 +1,194 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id         String    @id @default(cuid())
+  name       String?
+  email      String?   @unique
+  image      String?
+  gstin      String?   @unique
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @map("updated_at")
+  currencyId Int?
+  addressId  Int?
+  Address    Address?  @relation(fields: [addressId], references: [id])
+  Currency   Currency? @relation(fields: [currencyId], references: [id])
+
+  @@map("users")
+}
+
+model Settings {
+  id           String   @id @default(cuid())
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @map("updated_at")
+  currencyCode String
+  addressId    Int
+  address      Address  @relation(fields: [addressId], references: [id], onDelete: SetNull)
+  currency     Currency @relation(fields: [currencyCode], references: [code], onDelete: SetNull, onUpdate: Cascade)
+
+  @@map("settings")
+}
+
+model Account {
+  id                 String    @id @default(cuid())
+  compoundId         String    @unique @map("compound_id")
+  userId             Int       @map("user_id")
+  providerType       String    @map("provider_type")
+  providerId         String    @map("provider_id")
+  providerAccountId  String    @map("provider_account_id")
+  refreshToken       String?   @map("refresh_token")
+  accessToken        String?   @map("access_token")
+  accessTokenExpires DateTime? @map("access_token_expires")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @default(now()) @map("updated_at")
+
+  @@index([providerAccountId], map: "providerAccountId")
+  @@index([providerId], map: "providerId")
+  @@index([userId], map: "userId")
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       Int      @map("user_id")
+  expires      DateTime
+  sessionToken String   @unique @map("session_token")
+  accessToken  String   @unique @map("access_token")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @default(now()) @map("updated_at")
+
+  @@map("sessions")
+}
+
+model Currency {
+  id          Int           @id @default(autoincrement())
+  name        String        @unique
+  code        String        @unique
+  symbol      String        @unique
+  Customer    Customer[]
+  InvoiceItem InvoiceItem[]
+  Invoice     Invoice[]
+  Settings    Settings[]
+  User        User[]
+  Expense     Expense[]
+
+  @@map("currencies")
+}
+
+model Address {
+  id         Int        @id @default(autoincrement())
+  line1      String     @map("line_1")
+  line2      String?    @map("line_2")
+  city       String
+  state      String
+  pin        String
+  country    String
+  createdAt  DateTime   @default(now()) @map("created_at")
+  updatedAt  DateTime   @default(now()) @map("updated_at")
+  customerId Int        @unique @map("customer_id")
+  customer   Customer   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  Settings   Settings[]
+  User       User[]
+}
+
+model Customer {
+  id           Int       @id @default(autoincrement())
+  name         String
+  email        String?   @unique
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @map("updated_at")
+  phone        String?   @unique
+  notes        String?
+  currencyCode String    @map("currency_code")
+  vatin        String?
+  gstin        String?   @unique
+  logo         String?
+  address      Address?
+  currency     Currency  @relation(fields: [currencyCode], references: [code], onDelete: SetNull, onUpdate: Cascade)
+  Invoice      Invoice[]
+
+  @@map("customers")
+}
+
+model Tax {
+  id           Int           @id @default(autoincrement())
+  name         String
+  value        Float
+  type         TaxType
+  description  String?
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @map("updated_at")
+  invoiceItems InvoiceItem[]
+  invoices     Invoice[]
+
+  @@map("taxes")
+}
+
+model InvoiceItem {
+  id           Int      @id @default(autoincrement())
+  description  String?
+  quantity     Int
+  unitPrice    Float    @map("unit_price")
+  name         String
+  currencyCode String   @map("currency_code")
+  notes        String?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @map("updated_at")
+  currency     Currency @relation(fields: [currencyCode], references: [code], onDelete: SetNull, onUpdate: Cascade)
+  taxes        Tax[]
+
+  @@map("invoice_items")
+}
+
+model Invoice {
+  id            Int           @id @default(autoincrement())
+  customerId    Int           @map("customer_id")
+  invoiceNumber Int           @unique @map("invoice_number")
+  issueDate     DateTime      @map("issue_date")
+  dueDate       DateTime      @map("due_date")
+  currencyCode  String        @map("currency_code")
+  notes         String?
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @map("updated_at")
+  total         Float
+  status        InvoiceStatus
+  items         Json
+  currency      Currency      @relation(fields: [currencyCode], references: [code], onDelete: SetNull, onUpdate: Cascade)
+  customer      Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  taxes         Tax[]
+
+  @@map("invoices")
+}
+
+model Expense {
+  id           Int      @id @default(autoincrement())
+  name         String
+  description  String?
+  amount       Float
+  currencyCode String   @map("currency_code")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @map("updated_at")
+  currency     Currency @relation(fields: [currencyCode], references: [code], onDelete: SetNull, onUpdate: Cascade)
+  file         String?
+  hasGST       Boolean  @map("has_gst")
+
+  @@map("expenses")
+}
+
+enum TaxType {
+  percentage
+  fixed
+}
+
+enum InvoiceStatus {
+  draft
+  issued
+  paid
+  cancelled
+}
